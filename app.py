@@ -99,10 +99,11 @@ def handle_message(event):
 
         anime_result = a_result(ttl=anime_Ttl, img=anime_Img, data=anime_data)
 
-        line_bot_api.reply_message(ReplyMessageRequest(
-            replyToken=event.reply_token,
-            messages=[TextMessage(text=anime_result)]
-        ))
+        reply_messages = [TextMessage(text=result[:1000]) for result in anime_result[:5]]
+
+        line_bot_api.reply_message(
+            ReplyMessageRequest(replyToken=event.reply_token, messages=reply_messages)
+        )
 
 
 
