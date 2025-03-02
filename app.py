@@ -1,11 +1,11 @@
 import logging
-import requests
-from bs4 import BeautifulSoup
 import os
-import time
-from flask import Flask, request, abort
+import requests
+import json
+from bs4 import BeautifulSoup
 from cachetools import TTLCache
 from dotenv import load_dotenv
+from flask import Flask, request, abort
 from linebot.v3 import WebhookHandler
 from linebot.v3.exceptions import InvalidSignatureError
 from linebot.v3.messaging import (
@@ -14,115 +14,113 @@ from linebot.v3.messaging import (
 )
 from linebot.v3.webhooks import MessageEvent, TextMessageContent
 
-# .env 読み込み
+# .env ファイル読み込み
 load_dotenv()
+
+# 環境変数
 CHANNEL_ACCESS_TOKEN = os.environ["CHANNEL_ACCESS_TOKEN"]
 CHANNEL_SECRET = os.environ["CHANNEL_SECRET"]
 
 # Flask アプリ設定
 app = Flask(__name__)
+
+# LINE API 設定
 configuration = Configuration(access_token=CHANNEL_ACCESS_TOKEN)
 handler = WebhookHandler(CHANNEL_SECRET)
 
-# ロギング設定
-logging.basicConfig(level=logging.INFO)
-
-# キャッシュ（10分間保持、最大1セットのデータを保存）
-anime_cache = TTLCache(maxsize=1, ttl=600)
+# キャッシュ設定（キー: "anime_data", 保存時間: 600秒＝10分）
+cache = TTLCache(maxsize=1, ttl=600)
 
 
 @app.route("/callback", methods=['POST'])
 def callback():
+    """LINEのWebhookを受信するエンドポイント"""
     signature = request.headers['X-Line-Signature']
     body = request.get_data(as_text=True)
-    app.logger.info("Request body: " + body)
-    
+
     try:
         handler.handle(body, signature)
     except InvalidSignatureError:
-        app.logger.info("Invalid signature.")
         abort(400)
-    
+
     return 'OK'
 
 
 @handler.add(MessageEvent, message=TextMessageContent)
 def handle_message(event):
+    """メッセージイベントを処理"""
     with ApiClient(configuration) as api_client:
         line_bot_api = MessagingApi(api_client)
 
-    received_message = event.message.text.strip()
+    received_message = event.message.text
 
     if received_message == "@anime":
         try:
-            # キャッシュがあるか確認
-            if "anime_data" in anime_cache:
-                logging.info("キャッシュを使用")
-                anime_result = anime_cache["anime_data"]
+            # キャッシュがある場合、スクレイピングせずにキャッシュを使用
+            if "anime_data" in cache:
+                anime_result = cache["anime_data"]
             else:
-                logging.info("スクレイピング開始")
                 anime_result = fetch_anime_data()
-                anime_cache["anime_data"] = anime_result  # キャッシュに保存
+                cache["anime_data"] = anime_result  # キャッシュに保存
 
-            # フレックスメッセージの作成
+            # フレックスメッセージを作成
             flex_message = create_flex_message(anime_result)
 
+            # 返信
             line_bot_api.reply_message(
-                ReplyMessageRequest(replyToken=event.reply_token, messages=[flex_message])
+                ReplyMessageRequest(
+                    replyToken=event.reply_token,
+                    messages=[flex_message]
+                )
             )
 
         except Exception as e:
-            logging.error(f"Error: {e}")
+            logging.error(f"Error in handle_message: {e}")
             line_bot_api.reply_message(
-                ReplyMessageRequest(replyToken=event.reply_token, messages=[TextMessage(text="エラーが発生しました。")])
+                ReplyMessageRequest(
+                    replyToken=event.reply_token,
+                    messages=[TextMessage(text="エラーが発生しました。")]
+                )
             )
 
 
 def fetch_anime_data():
-    """アニメ情報をスクレイピングして取得する"""
-    res = requests.get('https://anime.eiga.com/program/')
+    """アニメ情報をスクレイピングして取得"""
+    url = 'https://anime.eiga.com/program/'
+    res = requests.get(url)
     soup = BeautifulSoup(res.text, 'html.parser')
 
-    anime_titles = soup.find_all(class_="seasonAnimeTtl")
-    anime_images = soup.find_all("img")
-    anime_details = soup.find_all(class_="seasonAnimeDetail")
+    animeTtl = soup.find_all(class_="seasonAnimeTtl")
+    animeImg = soup.find_all("img")
+    anime_data = soup.find_all(class_="seasonAnimeDetail")
 
-    # 重複削除関数
+    # 重複削除
     def dedup_and_restore(data):
         reversed_data = data[::-1]
         unique_reversed = sorted(set(reversed_data), key=reversed_data.index)
         return unique_reversed[::-1]
 
-    anime_titles = dedup_and_restore(anime_titles)
-    anime_images = dedup_and_restore(anime_images)
-    anime_images = [
-        img.get("src") for img in anime_images
-        if img.get("src") and ("/program/" in img.get("src") or "/shared/" in img.get("src"))
-    ]
+    anime_Ttl = dedup_and_restore(animeTtl)
+    anime_Img = dedup_and_restore(animeImg)
+    anime_Img = [img.get("src") for img in anime_Img if img.get("src") and ("/program/" in img.get("src") or "/shared/" in img.get("src"))]
 
-    # データをフォーマット
-    def format_anime_data(titles, images, details):
-        results = []
-        for i in range(min(len(titles), 10)):  # 最大10件
-            title = titles[i].get_text().strip()
-            image = images[i] if i < len(images) else "No image"
-            overview = details[i].get_text().strip() if i < len(details) else "No description"
+    # データ整理
+    anime_list = []
+    for i in range(min(len(anime_Ttl), 10)):  # 10件まで取得
+        title = anime_Ttl[i].get_text().strip()
+        image_url = anime_Img[i] if i < len(anime_Img) else "No image"
+        overview = anime_data[i].get_text().strip() if i < len(anime_data) else "No description"
+        anime_list.append({"title": title, "image": image_url, "overview": overview})
 
-            results.append({
-                "title": title,
-                "image": image,
-                "overview": overview
-            })
-        return results
-
-    return format_anime_data(anime_titles, anime_images, anime_details)
+    return anime_list
 
 
 def create_flex_message(anime_list):
-    """アニメ情報をFlex Message形式に変換する"""
-    contents = []
+    """フレックスメッセージを生成"""
+    bubble_contents = []
+
     for anime in anime_list:
-        contents.append({
+        bubble = {
             "type": "bubble",
             "hero": {
                 "type": "image",
@@ -135,17 +133,37 @@ def create_flex_message(anime_list):
                 "type": "box",
                 "layout": "vertical",
                 "contents": [
-                    {"type": "text", "text": anime["title"], "weight": "bold", "size": "lg"},
-                    {"type": "text", "text": anime["overview"], "wrap": True, "size": "sm"}
+                    {
+                        "type": "text",
+                        "text": anime["title"],
+                        "weight": "bold",
+                        "size": "lg",
+                        "wrap": True
+                    },
+                    {
+                        "type": "text",
+                        "text": anime["overview"][:60] + "...",  # 概要の一部のみ表示
+                        "size": "sm",
+                        "wrap": True
+                    }
                 ]
             }
-        })
+        }
+        bubble_contents.append(bubble)
 
-    return FlexMessage(alt_text="最新アニメ情報", contents={"type": "carousel", "contents": contents})
+    flex_message = FlexMessage(
+        altText="アニメ情報一覧",
+        contents={
+            "type": "carousel",
+            "contents": bubble_contents
+        }
+    )
+
+    return flex_message
 
 
-## ボット起動コード
+# Flask サーバー起動
 if __name__ == "__main__":
-    ## ローカルでテストする時のために、`debug=True` にしておく
     app.run(host="0.0.0.0", port=8000, debug=True)
+
 
