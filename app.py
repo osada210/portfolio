@@ -67,13 +67,14 @@ def handle_message(event):
         anime_Img = dedup_and_restore(animeImg)
         anime_Img = [img.get("src") for img in anime_Img if img.get("src") and ("/program/" in img.get("src") or "/shared/" in img.get("src"))]
 
-        def a_result(ttl, img, data):
+        def a_result(ttl,img,data):
             results = []
             for i in range(len(ttl)):
                 title = ttl[i].get_text()
-                imagine = img[i] if i < len(img) else "画像なし"
+                imagine = img[i]
                 overview = data[i].get_text()
-                results.append(f"{title}\n{imagine}\n{overview}\n")
+                anime_result = title + imagine + overview
+                results.append(anime_result)
             return results
 
         anime_result = a_result(ttl=anime_Ttl, img=anime_Img, data=anime_data)
