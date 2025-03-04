@@ -5,56 +5,40 @@ from linebot.v3.messaging import (
     ApiClient, Configuration, MessagingApi,
     ReplyMessageRequest, FlexMessage
 )
-from linebot.v3.webhooks import PostbackEvent, MessageEvent, TextMessageContent
+from linebot.v3.webhooks import MessageEvent, TextMessageContent
 import os
 import requests
 from bs4 import BeautifulSoup
-import re
-import time
 
 app = Flask(__name__)
 
-# LINE APIの設定
+# LINE API 設定
 CHANNEL_ACCESS_TOKEN = os.environ["CHANNEL_ACCESS_TOKEN"]
 CHANNEL_SECRET = os.environ["CHANNEL_SECRET"]
 configuration = Configuration(access_token=CHANNEL_ACCESS_TOKEN)
 handler = WebhookHandler(CHANNEL_SECRET)
 
-# キャッシュ機能の追加
-anime_cache = {"data": [], "timestamp": 0}
-CACHE_DURATION = 3600  # 1時間（秒単位）
-
-def scrape_anime_data():
-    global anime_cache
-    current_time = time.time()
-    if anime_cache["data"] and (current_time - anime_cache["timestamp"] < CACHE_DURATION):
-        return  # キャッシュが有効ならスクレイピングをスキップ
+def get_anime():
+    """ アニメ情報を1件取得 """
+    res = requests.get('https://anime.eiga.com/program/', timeout=10)
+    soup = BeautifulSoup(res.text, 'html.parser')
     
-    try:
-        res = requests.get('https://anime.eiga.com/program/', timeout=10)
-        soup = BeautifulSoup(res.text, 'html.parser')
-        titles = soup.find_all(class_="seasonAnimeTtl")
-        images = soup.find_all("img")
-        overviews = soup.find_all(class_="seasonAnimeDetail")
+    title = soup.find(class_="seasonAnimeTtl")
+    image = soup.find("img")
+    overview = soup.find(class_="seasonAnimeDetail")
 
-        anime_cache["data"] = [
-            {
-                "title": titles[i].get_text(),
-                "image": images[i].get("src", "https://via.placeholder.com/300"),  # デフォルト画像
-                "overview": overviews[i].get_text()
-            }
-            for i in range(min(len(titles), len(images), len(overviews)))
-        ]
-        anime_cache["timestamp"] = current_time
-    except requests.RequestException as e:
-        print(f"スクレイピングエラー: {e}")
+    return {
+        "title": title.get_text() if title else "タイトル不明",
+        "image": image["src"] if image and image.get("src") else "https://via.placeholder.com/300",
+        "overview": overview.get_text() if overview else "概要なし"
+    }
 
-def create_flex_carousel(start_index):
-    bubbles = []
-    batch_size = 10
-    for i in range(start_index, min(start_index + batch_size, len(anime_cache["data"]))):
-        anime = anime_cache["data"][i]
-        bubble = {
+@handler.add(MessageEvent, message=TextMessageContent)
+def handle_message(event):
+    if event.message.text == "@anime":
+        anime = get_anime()
+        
+        flex_content = {
             "type": "bubble",
             "body": {
                 "type": "box",
@@ -66,58 +50,9 @@ def create_flex_carousel(start_index):
                 ]
             }
         }
-        bubbles.append(bubble)
 
-    if start_index + batch_size < len(anime_cache["data"]):
-        bubbles.append({
-            "type": "bubble",
-            "body": {
-                "type": "box",
-                "layout": "vertical",
-                "contents": [
-                    {"type": "text", "text": "次のページを見る", "weight": "bold", "size": "lg", "align": "center"}
-                ]
-            },
-            "footer": {
-                "type": "box",
-                "layout": "vertical",
-                "contents": [
-                    {
-                        "type": "button",
-                        "action": {
-                            "type": "postback",
-                            "label": "次へ",
-                            "data": f"page={start_index + batch_size}"
-                        }
-                    }
-                ]
-            }
-        })
-    return {"type": "carousel", "contents": bubbles}
-
-@handler.add(MessageEvent, message=TextMessageContent)
-def handle_message(event):
-    with ApiClient(configuration) as api_client:
-        line_bot_api = MessagingApi(api_client)
-
-    if event.message.text == "@anime":
-        scrape_anime_data()
-        flex_content = create_flex_carousel(0)
-        message = FlexMessage(alt_text="アニメ情報", contents=flex_content)
-        line_bot_api.reply_message(ReplyMessageRequest(
-            replyToken=event.reply_token,
-            messages=[message]
-        ))
-
-@handler.add(PostbackEvent)
-def handle_postback(event):
-    if event.postback and event.postback.data:  # Noneチェックを追加
-        match = re.match(r"page=(\d+)", event.postback.data)
-        if match:
-            start_index = int(match.group(1))
-            with ApiClient(configuration) as api_client:
-                line_bot_api = MessagingApi(api_client)
-            flex_content = create_flex_carousel(start_index)
+        with ApiClient(configuration) as api_client:
+            line_bot_api = MessagingApi(api_client)
             message = FlexMessage(alt_text="アニメ情報", contents=flex_content)
             line_bot_api.reply_message(ReplyMessageRequest(
                 replyToken=event.reply_token,
