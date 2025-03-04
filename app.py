@@ -1,89 +1,105 @@
-from flask import Flask, request, abort
-from linebot.v3 import WebhookHandler, LineBotApi
-from linebot.v3.exceptions import InvalidSignatureError
-from linebot.v3.webhooks import MessageEvent, TextMessageContent
-from linebot.v3.messaging import ReplyMessageRequest, TextMessage, FlexMessage
+import urllib.request
+from bs4 import BeautifulSoup
+import json
 import requests
+from flask import Flask, request, abort
+from cachetools import TTLCache
+from linebot.v3 import WebhookHandler
+from linebot.v3.exceptions import InvalidSignatureError
+from linebot.v3.messaging import (
+    ApiClient, Configuration, MessagingApi,
+    ReplyMessageRequest, TextMessage
+)
+from linebot.v3.webhooks import MessageEvent, TextMessageContent
 import os
 
+# .env 読み込み
+from dotenv import load_dotenv
+load_dotenv()
+
+# 環境変数を取得
+CHANNEL_ACCESS_TOKEN = os.environ["CHANNEL_ACCESS_TOKEN"]
+CHANNEL_SECRET = os.environ["CHANNEL_SECRET"]
+
+# Flask アプリのインスタンス化
 app = Flask(__name__)
 
-# LINE API の設定
-LINE_CHANNEL_ACCESS_TOKEN = os.getenv("LINE_CHANNEL_ACCESS_TOKEN")
-LINE_CHANNEL_SECRET = os.getenv("LINE_CHANNEL_SECRET")
-line_bot_api = LineBotApi(LINE_CHANNEL_ACCESS_TOKEN)
-handler = WebhookHandler(LINE_CHANNEL_SECRET)
+# LINE のアクセストークン読み込み
+configuration = Configuration(access_token=CHANNEL_ACCESS_TOKEN)
+handler = WebhookHandler(CHANNEL_SECRET)
+
+# キャッシュ設定（キー: "anime_data", 保存時間: 600秒＝10分）
+cache = TTLCache(maxsize=1, ttl=600)
 
 @app.route("/callback", methods=['POST'])
 def callback():
     signature = request.headers['X-Line-Signature']
     body = request.get_data(as_text=True)
+    app.logger.info("Request body: " + body)
+
     try:
         handler.handle(body, signature)
     except InvalidSignatureError:
+        app.logger.info("Invalid signature. Please check your channel access token/channel secret.")
         abort(400)
+
     return 'OK'
 
 @handler.add(MessageEvent, message=TextMessageContent)
 def handle_message(event):
-    user_message = event.message.text.strip()
-    if user_message.lower() == "@anime":
-        reply = get_anime_info()
-    else:
-        reply = TextMessage(text="@anime と送信すると、最新のアニメ情報を取得できます。")
-    
-    line_bot_api.reply_message(
-        ReplyMessageRequest(
-            reply_token=event.reply_token,
-            messages=[reply]
-        )
-    )
+    with ApiClient(configuration) as api_client:
+        line_bot_api = MessagingApi(api_client)
 
-def get_anime_info():
-    api_url = "https://api.example.com/anime"  # APIエンドポイントを適宜変更
-    response = requests.get(api_url)
-    if response.status_code != 200:
-        return TextMessage(text="アニメ情報の取得に失敗しました。")
-    
-    anime_result = response.json()
-    if not anime_result:
-        return TextMessage(text="現在、取得できるアニメ情報がありません。")
-    
-    bubbles = []
-    for anime in anime_result[:5]:  # 最大5件表示
-        title = anime.get("title", "タイトル不明")
-        image_url = anime.get("image", "https://example.com/default.jpg")
-        overview = anime.get("overview", "説明なし")
-        
-        bubble = {
-            "type": "bubble",
-            "hero": {
-                "type": "image",
-                "url": image_url,
-                "size": "full",
-                "aspectRatio": "20:13",
-                "aspectMode": "cover"
-            },
-            "body": {
-                "type": "box",
-                "layout": "vertical",
-                "contents": [
-                    {"type": "text", "text": title, "weight": "bold", "size": "xl"},
-                    {"type": "text", "text": overview, "wrap": True, "size": "sm", "margin": "md"}
-                ]
-            }
-        }
-        bubbles.append(bubble)
-    
-    flex_message = FlexMessage(
-        alt_text="アニメ情報",
-        contents={
-            "type": "carousel",
-            "contents": bubbles
-        }
-    )
-    return flex_message
+    received_message = event.message.text
 
+    if received_message == "@anime":
+        # キャッシュがある場合はそれを使用
+        if "anime_data" in cache:
+            anime_result = cache["anime_data"]
+        else:
+            # スクレイピングを実行
+            anime_result = fetch_anime_data()
+            cache["anime_data"] = anime_result  # キャッシュに保存
+
+        # メッセージを整形
+        reply_text = "\n\n".join(anime_result[:5])  # 最大5件まで表示
+        if not reply_text:
+            reply_text = "アニメ情報が取得できませんでした。"
+
+        line_bot_api.reply_message(ReplyMessageRequest(
+            replyToken=event.reply_token,
+            messages=[TextMessage(text=reply_text)]
+        ))
+
+def fetch_anime_data():
+    """アニメ情報をスクレイピングして取得する"""
+    res = requests.get('https://anime.eiga.com/program/')
+    soup = BeautifulSoup(res.text, 'html.parser')
+
+    animeTtl = soup.find_all(class_="seasonAnimeTtl")
+    animeImg = soup.find_all("img")
+    anime_data = soup.find_all(class_="seasonAnimeDetail")
+
+    # 重複削除
+    def dedup_and_restore(data):
+        reversed_data = data[::-1]
+        unique_reversed = sorted(set(reversed_data), key=reversed_data.index)
+        return unique_reversed[::-1]
+
+    anime_Ttl = dedup_and_restore(animeTtl)
+    anime_Img = dedup_and_restore(animeImg)
+    anime_Img = [img.get("src") for img in anime_Img if img.get("src") and ("/program/" in img.get("src") or "/shared/" in img.get("src"))]
+
+    # データ整形
+    anime_result = []
+    for i in range(min(len(anime_Ttl), 10)):  # 最大10件
+        title = anime_Ttl[i].get_text().strip()
+        image = anime_Img[i] if i < len(anime_Img) else "No image"
+        overview = anime_data[i].get_text().strip() if i < len(anime_data) else "No description"
+        anime_result.append(f"【{title}】\n{overview}\n画像: {image}")
+
+    return anime_result
+
+# ボット起動
 if __name__ == "__main__":
-    app.run(debug=True)
-
+    app.run(host="0.0.0.0", port=8000, debug=True)
