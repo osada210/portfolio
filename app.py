@@ -10,6 +10,7 @@ import os
 import requests
 from bs4 import BeautifulSoup
 import re
+import time
 
 app = Flask(__name__)
 
@@ -19,13 +20,15 @@ CHANNEL_SECRET = os.environ["CHANNEL_SECRET"]
 configuration = Configuration(access_token=CHANNEL_ACCESS_TOKEN)
 handler = WebhookHandler(CHANNEL_SECRET)
 
-# スクレイピングしたアニメ情報を保存する
-anime_data_list = []
+# キャッシュ機能の追加
+anime_cache = {"data": [], "timestamp": 0}
+CACHE_DURATION = 3600  # 1時間（秒単位）
 
 def scrape_anime_data():
-    global anime_data_list
-    if anime_data_list:
-        return  # 既にデータがある場合はスクレイピングを行わない
+    global anime_cache
+    current_time = time.time()
+    if anime_cache["data"] and (current_time - anime_cache["timestamp"] < CACHE_DURATION):
+        return  # キャッシュが有効ならスクレイピングをスキップ
     
     res = requests.get('https://anime.eiga.com/program/')
     soup = BeautifulSoup(res.text, 'html.parser')
@@ -33,16 +36,17 @@ def scrape_anime_data():
     images = soup.find_all("img")
     overviews = soup.find_all(class_="seasonAnimeDetail")
     
-    anime_data_list = [
+    anime_cache["data"] = [
         {"title": titles[i].get_text(), "image": images[i]["src"], "overview": overviews[i].get_text()}
         for i in range(min(len(titles), len(images), len(overviews)))
     ]
+    anime_cache["timestamp"] = current_time
 
 def create_flex_carousel(start_index):
     bubbles = []
     batch_size = 10
-    for i in range(start_index, min(start_index + batch_size, len(anime_data_list))):
-        anime = anime_data_list[i]
+    for i in range(start_index, min(start_index + batch_size, len(anime_cache["data"]))):
+        anime = anime_cache["data"][i]
         bubble = {
             "type": "bubble",
             "body": {
@@ -57,7 +61,7 @@ def create_flex_carousel(start_index):
         }
         bubbles.append(bubble)
     
-    if start_index + batch_size < len(anime_data_list):
+    if start_index + batch_size < len(anime_cache["data"]):
         bubbles.append({
             "type": "bubble",
             "body": {
