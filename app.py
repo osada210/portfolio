@@ -8,7 +8,7 @@ from linebot.v3 import WebhookHandler
 from linebot.v3.exceptions import InvalidSignatureError
 from linebot.v3.messaging import (
     ApiClient, Configuration, MessagingApi,
-    ReplyMessageRequest, FlexMessage
+    ReplyMessageRequest, TextMessage, FlexMessage
 )
 from linebot.v3.webhooks import MessageEvent, TextMessageContent
 import os
@@ -67,8 +67,33 @@ def handle_message(event):
             ))
             return
 
-        # 最初の1件をFlex Messageで送信
-        flex_message = create_flex_message(anime_result[0])
+        # 1つのFlex Message Bubbleを作成
+        anime = anime_result[0]  # 最新のアニメ1件のみ
+        title, overview, image_url = anime.split("\n")
+        image_url = image_url.replace("画像: ", "")
+
+        flex_message = FlexMessage(
+            alt_text="アニメ情報",
+            contents={
+                "type": "bubble",
+                "hero": {
+                    "type": "image",
+                    "url": image_url,
+                    "size": "full",
+                    "aspectRatio": "20:13",
+                    "aspectMode": "cover"
+                },
+                "body": {
+                    "type": "box",
+                    "layout": "vertical",
+                    "contents": [
+                        {"type": "text", "text": title.replace("【", "").replace("】", ""), "weight": "bold", "size": "xl"},
+                        {"type": "text", "text": overview, "wrap": True, "size": "sm", "margin": "md"}
+                    ]
+                }
+            }
+        )
+
         line_bot_api.reply_message(ReplyMessageRequest(
             replyToken=event.reply_token,
             messages=[flex_message]
@@ -83,6 +108,7 @@ def fetch_anime_data():
     animeImg = soup.find_all("img")
     anime_data = soup.find_all(class_="seasonAnimeDetail")
 
+    # 重複削除
     def dedup_and_restore(data):
         reversed_data = data[::-1]
         unique_reversed = sorted(set(reversed_data), key=reversed_data.index)
@@ -92,49 +118,15 @@ def fetch_anime_data():
     anime_Img = dedup_and_restore(animeImg)
     anime_Img = [img.get("src") for img in anime_Img if img.get("src") and ("/program/" in img.get("src") or "/shared/" in img.get("src"))]
 
+    # データ整形
     anime_result = []
-    for i in range(min(len(anime_Ttl), 10)):
+    for i in range(min(len(anime_Ttl), 10)):  # 最大10件
         title = anime_Ttl[i].get_text().strip()
         image = anime_Img[i] if i < len(anime_Img) else "No image"
         overview = anime_data[i].get_text().strip() if i < len(anime_data) else "No description"
-        anime_result.append({"title": title, "image": image, "overview": overview})
+        anime_result.append(f"【{title}】\n{overview}\n画像: {image}")
 
     return anime_result
-
-def create_flex_message(anime):
-    """Flex Message の JSON を生成"""
-    flex_content = {
-        "type": "bubble",
-        "hero": {
-            "type": "image",
-            "url": anime["image"],
-            "size": "full",
-            "aspectRatio": "16:9",
-            "aspectMode": "cover"
-        },
-        "body": {
-            "type": "box",
-            "layout": "vertical",
-            "contents": [
-                {
-                    "type": "text",
-                    "text": anime["title"],
-                    "weight": "bold",
-                    "size": "xl",
-                    "wrap": True
-                },
-                {
-                    "type": "text",
-                    "text": anime["overview"],
-                    "size": "sm",
-                    "wrap": True,
-                    "margin": "md"
-                }
-            ]
-        }
-    }
-
-    return FlexMessage(alt_text="最新アニメ情報", contents=flex_content)
 
 # ボット起動
 if __name__ == "__main__":
