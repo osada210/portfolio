@@ -69,8 +69,24 @@ flex_content = {
         "size": "sm"
       }
     ]
+  },
+  "footer": {  # フッター部分を追加
+    "type": "box",
+    "layout": "horizontal",
+    "contents": [
+      {
+        "type": "button",
+        "style": "primary",
+        "action": {
+          "type": "uri",
+          "label": "Learn more",
+          "uri": "https://example.com"
+        }
+      }
+    ]
   }
 }
+
 
 @handler.add(MessageEvent, message=TextMessageContent)
 def handle_message(event):
