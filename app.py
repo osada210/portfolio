@@ -4,10 +4,11 @@ from linebot.v3 import WebhookHandler
 from linebot.v3.exceptions import InvalidSignatureError
 from linebot.v3.messaging import (
     ApiClient, Configuration, MessagingApi,
-    ReplyMessageRequest, FlexMessage, FlexBubble, FlexBox, FlexText, FlexImage
+    ReplyMessageRequest, FlexMessage
 )
-from dotenv import load_dotenv
 from linebot.v3.webhooks import MessageEvent, TextMessageContent
+from dotenv import load_dotenv
+from linebot.v3.messaging import FlexBubble, FlexBox, FlexText ,FlexMessage, FlexImage
 
 # .env ファイル読み込み
 load_dotenv()
@@ -42,7 +43,7 @@ def callback():
 
     return 'OK'
 
-# アニメのフレックスメッセージを作成
+# アニメのフレックスメッセージ作成
 def create_anime_flex_message():
     # 1つ目のバブル
     bubble_1 = FlexBubble(size='giga')
@@ -109,11 +110,11 @@ def create_anime_flex_message():
         alt_text="阿波連さんははかれない season2の詳細",  # フレックスメッセージがサポートされていない端末用のテキスト
         contents={
             "type": "carousel",
-            "contents": [bubble_1, bubble_2]  # 2つのバブルをカルーセル形式で配置
+            "contents": [bubble_1.to_dict(), bubble_2.to_dict()]  # `to_dict()` メソッドでオブジェクトを辞書に変換
         }
     )
 
-# メッセージイベントの処理
+# メッセージ受信時の処理
 @handler.add(MessageEvent, message=TextMessageContent)
 def handle_message(event):
     # APIインスタンス化
