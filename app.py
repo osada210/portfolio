@@ -50,14 +50,10 @@ flex_content = {
   "type": "bubble",
   "hero": {
     "type": "image",
-    "url": "https://developers-resource.landpress.line.me/fx/img/01_1_cafe.png",
+    "url": "https://eiga.k-img.com/images/anime/program/112402/photo/32b8213a9a89c167/160.jpg?1740713414",
     "size": "full",
     "aspectRatio": "20:13",
-    "aspectMode": "cover",
-    "action": {
-      "type": "uri",
-      "uri": "https://line.me/"
-    }
+    "aspectMode": "cover"
   },
   "body": {
     "type": "box",
@@ -65,137 +61,17 @@ flex_content = {
     "contents": [
       {
         "type": "text",
-        "text": "Brown Cafe",
+        "text": "TITLE",
         "weight": "bold",
         "size": "xl"
       },
       {
-        "type": "box",
-        "layout": "baseline",
-        "margin": "md",
-        "contents": [
-          {
-            "type": "icon",
-            "size": "sm",
-            "url": "https://developers-resource.landpress.line.me/fx/img/review_gold_star_28.png"
-          },
-          {
-            "type": "icon",
-            "size": "sm",
-            "url": "https://developers-resource.landpress.line.me/fx/img/review_gold_star_28.png"
-          },
-          {
-            "type": "icon",
-            "size": "sm",
-            "url": "https://developers-resource.landpress.line.me/fx/img/review_gold_star_28.png"
-          },
-          {
-            "type": "icon",
-            "size": "sm",
-            "url": "https://developers-resource.landpress.line.me/fx/img/review_gold_star_28.png"
-          },
-          {
-            "type": "icon",
-            "size": "sm",
-            "url": "https://developers-resource.landpress.line.me/fx/img/review_gray_star_28.png"
-          },
-          {
-            "type": "text",
-            "text": "4.0",
-            "size": "sm",
-            "color": "#999999",
-            "margin": "md",
-            "flex": 0
-          }
-        ]
-      },
-      {
-        "type": "box",
-        "layout": "vertical",
-        "margin": "lg",
-        "spacing": "sm",
-        "contents": [
-          {
-            "type": "box",
-            "layout": "baseline",
-            "spacing": "sm",
-            "contents": [
-              {
-                "type": "text",
-                "text": "Place",
-                "color": "#aaaaaa",
-                "size": "sm",
-                "flex": 1
-              },
-              {
-                "type": "text",
-                "text": "Flex Tower, 7-7-4 Midori-ku, Tokyo",
-                "wrap": True,
-                "color": "#666666",
-                "size": "sm",
-                "flex": 5
-              }
-            ]
-          },
-          {
-            "type": "box",
-            "layout": "baseline",
-            "spacing": "sm",
-            "contents": [
-              {
-                "type": "text",
-                "text": "Time",
-                "color": "#aaaaaa",
-                "size": "sm",
-                "flex": 1
-              },
-              {
-                "type": "text",
-                "text": "10:00 - 23:00",
-                "wrap": True,
-                "color": "#666666",
-                "size": "sm",
-                "flex": 5
-              }
-            ]
-          }
-        ]
+        "type": "text",
+        "text": "DESCRIPTION",
+        "wrap": True,
+        "size": "sm"
       }
     ]
-  },
-  "footer": {
-    "type": "box",
-    "layout": "vertical",
-    "spacing": "sm",
-    "contents": [
-      {
-        "type": "button",
-        "style": "link",
-        "height": "sm",
-        "action": {
-          "type": "uri",
-          "label": "CALL",
-          "uri": "https://line.me/"
-        }
-      },
-      {
-        "type": "button",
-        "style": "link",
-        "height": "sm",
-        "action": {
-          "type": "uri",
-          "label": "WEBSITE",
-          "uri": "https://line.me/"
-        }
-      },
-      {
-        "type": "box",
-        "layout": "vertical",
-        "contents": [],
-        "margin": "sm"
-      }
-    ],
-    "flex": 0
   }
 }
 
@@ -216,12 +92,15 @@ def handle_message(event):
             anime_result = fetch_anime_data()
             cache["anime_data"] = anime_result  # キャッシュに保存
 
-        # メッセージを整形
-        reply_text = "\n\n".join(anime_result[:5])  # 最大5件まで表示
-        if not reply_text:
+        if not anime_result:
             reply_text = "アニメ情報が取得できませんでした。"
+            message = TextMessage(text=reply_text)
+        else:
+            message = FlexMessage(
+                alt_text="アニメ情報",
+                contents=FlexContainer.model_validate(flex_content)  # 辞書を適切な型に変換
+            )
 
-        message = FlexMessage(alt_text="アニメ情報", contents=flex_content)
         line_bot_api.reply_message(ReplyMessageRequest(
             replyToken=event.reply_token,
             messages=[message]
