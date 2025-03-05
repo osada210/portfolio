@@ -4,8 +4,7 @@ from linebot.v3 import WebhookHandler
 from linebot.v3.exceptions import InvalidSignatureError
 from linebot.v3.messaging import (
     ApiClient, Configuration, MessagingApi,
-    ReplyMessageRequest, PushMessageRequest,
-    TextMessage, FlexMessage
+    ReplyMessageRequest, TextMessage, FlexMessage
 )
 from linebot.v3.webhooks import MessageEvent, TextMessageContent
 from dotenv import load_dotenv
@@ -89,10 +88,12 @@ def handle_message(event):
     # @test が受信された場合、フレックスメッセージを送信
     if received_message == "@test":
         message = create_flex_message()  # フレックスメッセージの作成
-        line_bot_api.reply_message(ReplyMessageRequest(
-            replyToken=event.reply_token,
-            messages=[message]
-        ))
+        line_bot_api.reply_message(
+            ReplyMessageRequest(
+                replyToken=event.reply_token,
+                messages=[message]
+            )
+        )
 
 # ボット起動
 if __name__ == "__main__":
