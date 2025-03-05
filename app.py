@@ -8,15 +8,13 @@ from linebot.v3 import WebhookHandler
 from linebot.v3.exceptions import InvalidSignatureError
 from linebot.v3.messaging import (
     ApiClient, Configuration, MessagingApi,
-    ReplyMessageRequest, TextMessage
+    ReplyMessageRequest, TextMessage, FlexMessage
 )
 from linebot.v3.webhooks import MessageEvent, TextMessageContent
 import os
-from linebot.v3.messaging import FlexMessage, FlexContainer
-
+from dotenv import load_dotenv
 
 # .env 読み込み
-from dotenv import load_dotenv
 load_dotenv()
 
 # 環境変数を取得
@@ -76,7 +74,6 @@ flex_content = {
   }
 }
 
-
 @handler.add(MessageEvent, message=TextMessageContent)
 def handle_message(event):
     with ApiClient(configuration) as api_client:
@@ -99,7 +96,7 @@ def handle_message(event):
         else:
             message = FlexMessage(
                 alt_text="アニメ情報",
-                contents=FlexContainer.model_validate(flex_content)  # 辞書を適切な型に変換
+                contents=flex_content  # 修正：辞書をそのまま渡す
             )
 
         line_bot_api.reply_message(ReplyMessageRequest(
