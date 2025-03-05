@@ -1,7 +1,16 @@
-from linebot.v3 import WebhookHandler
-from linebot.v3.messaging import ApiClient, Configuration, MessagingApi, FlexMessage
-from linebot.v3.webhooks import MessageEvent, TextMessageContent
+import urllib.request
+from bs4 import BeautifulSoup
+import json
+import requests
 from flask import Flask, request, abort
+from cachetools import TTLCache
+from linebot.v3 import WebhookHandler
+from linebot.v3.exceptions import InvalidSignatureError
+from linebot.v3.messaging import (
+    ApiClient, Configuration, MessagingApi,
+    ReplyMessageRequest, TextMessage, FlexMessage
+)
+from linebot.v3.webhooks import MessageEvent, TextMessageContent
 import os
 from dotenv import load_dotenv
 
