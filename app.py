@@ -50,7 +50,7 @@ def create_flex_message():
             "type": "bubble",
             "hero": {
                 "type": "image",
-                "url": "https://example.com/your-image.jpg",
+                "url": "https://eiga.k-img.com/images/anime/program/112402/photo/32b8213a9a89c167/160.jpg?1740713414",
                 "size": "full",
                 "aspectRatio": "20:13",
                 "aspectMode": "cover"
@@ -61,13 +61,13 @@ def create_flex_message():
                 "contents": [
                     {
                         "type": "text",
-                        "text": "タイトル",
+                        "text": "TITLE",
                         "weight": "bold",
                         "size": "xl"
                     },
                     {
                         "type": "text",
-                        "text": "これはシンプルなフレックスメッセージの説明です。",
+                        "text": "DESCRIPTION",
                         "wrap": True,
                         "size": "sm"
                     }
@@ -75,6 +75,7 @@ def create_flex_message():
             }
         }
     )
+
 
 @handler.add(MessageEvent, message=TextMessageContent)
 def handle_message(event):
