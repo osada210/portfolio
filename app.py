@@ -130,7 +130,7 @@ flex_content = {
               {
                 "type": "text",
                 "text": "Flex Tower, 7-7-4 Midori-ku, Tokyo",
-                "wrap": true,
+                "wrap": True,
                 "color": "#666666",
                 "size": "sm",
                 "flex": 5
