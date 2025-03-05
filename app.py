@@ -1,16 +1,7 @@
-import urllib.request
-from bs4 import BeautifulSoup
-import json
-import requests
-from flask import Flask, request, abort
-from cachetools import TTLCache
 from linebot.v3 import WebhookHandler
-from linebot.v3.exceptions import InvalidSignatureError
-from linebot.v3.messaging import (
-    ApiClient, Configuration, MessagingApi,
-    ReplyMessageRequest, TextMessage, FlexMessage
-)
+from linebot.v3.messaging import ApiClient, Configuration, MessagingApi, FlexMessage
 from linebot.v3.webhooks import MessageEvent, TextMessageContent
+from flask import Flask, request, abort
 import os
 from dotenv import load_dotenv
 
@@ -28,9 +19,6 @@ app = Flask(__name__)
 configuration = Configuration(access_token=CHANNEL_ACCESS_TOKEN)
 handler = WebhookHandler(CHANNEL_SECRET)
 
-# キャッシュ設定（キー: "anime_data", 保存時間: 600秒＝10分）
-cache = TTLCache(maxsize=1, ttl=600)
-
 @app.route("/callback", methods=['POST'])
 def callback():
     signature = request.headers['X-Line-Signature']
@@ -45,6 +33,7 @@ def callback():
 
     return 'OK'
 
+# フレックスメッセージの内容
 flex_content = {
   "type": "bubble",
   "hero": {
@@ -82,57 +71,17 @@ def handle_message(event):
     received_message = event.message.text
 
     if received_message == "@anime":
-        # キャッシュがある場合はそれを使用
-        if "anime_data" in cache:
-            anime_result = cache["anime_data"]
-        else:
-            # スクレイピングを実行
-            anime_result = fetch_anime_data()
-            cache["anime_data"] = anime_result  # キャッシュに保存
-
-        if not anime_result:
-            reply_text = "アニメ情報が取得できませんでした。"
-            message = TextMessage(text=reply_text)
-        else:
-            message = FlexMessage(
-                alt_text="アニメ情報",
-                contents=flex_content  # 修正：辞書をそのまま渡す
-            )
+        message = FlexMessage(
+            alt_text="アニメ情報",
+            contents=flex_content  # フレックスメッセージの内容
+        )
 
         line_bot_api.reply_message(ReplyMessageRequest(
             replyToken=event.reply_token,
             messages=[message]
         ))
 
-def fetch_anime_data():
-    """アニメ情報をスクレイピングして取得する"""
-    res = requests.get('https://anime.eiga.com/program/')
-    soup = BeautifulSoup(res.text, 'html.parser')
-
-    animeTtl = soup.find_all(class_="seasonAnimeTtl")
-    animeImg = soup.find_all("img")
-    anime_data = soup.find_all(class_="seasonAnimeDetail")
-
-    # 重複削除
-    def dedup_and_restore(data):
-        reversed_data = data[::-1]
-        unique_reversed = sorted(set(reversed_data), key=reversed_data.index)
-        return unique_reversed[::-1]
-
-    anime_Ttl = dedup_and_restore(animeTtl)
-    anime_Img = dedup_and_restore(animeImg)
-    anime_Img = [img.get("src") for img in anime_Img if img.get("src") and ("/program/" in img.get("src") or "/shared/" in img.get("src"))]
-
-    # データ整形
-    anime_result = []
-    for i in range(min(len(anime_Ttl), 10)):  # 最大10件
-        title = anime_Ttl[i].get_text().strip()
-        image = anime_Img[i] if i < len(anime_Img) else "No image"
-        overview = anime_data[i].get_text().strip() if i < len(anime_data) else "No description"
-        anime_result.append(f"【{title}】\n{overview}\n画像: {image}")
-
-    return anime_result
-
 # ボット起動
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8000, debug=True)
+
