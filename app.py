@@ -114,6 +114,7 @@ def create_anime_flex_message():
         }
     )
 
+
 # メッセージ受信時の処理
 @handler.add(MessageEvent, message=TextMessageContent)
 def handle_message(event):
