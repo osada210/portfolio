@@ -68,7 +68,11 @@ def create_simple_flex_message():
     )
     bubble_container.body = body_box
 
-    return bubble_container
+    # FlexMessageでラップ
+    return FlexMessage(
+        alt_text="シンプルなフレックスメッセージ",
+        contents=bubble_container
+    )
 
 @handler.add(MessageEvent, message=TextMessageContent)
 def handle_message(event):
