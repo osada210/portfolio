@@ -4,10 +4,11 @@ from linebot.v3 import WebhookHandler
 from linebot.v3.exceptions import InvalidSignatureError
 from linebot.v3.messaging import (
     ApiClient, Configuration, MessagingApi,
-    ReplyMessageRequest, TextMessage, FlexMessage
+    ReplyMessageRequest, FlexMessage
 )
 from linebot.v3.webhooks import MessageEvent, TextMessageContent
 from dotenv import load_dotenv
+from linebot.v3.messaging import FlexBubble, FlexBox, FlexText
 
 # .env ファイル読み込み
 load_dotenv()
@@ -42,40 +43,32 @@ def callback():
 
     return 'OK'
 
-# フレックスメッセージの内容
-def create_flex_message():
-    return FlexMessage(
-        alt_text="シンプルなフレックスメッセージ",
-        contents={
-            "type": "bubble",
-            "hero": {
-                "type": "image",
-                "url": "https://eiga.k-img.com/images/anime/program/112402/photo/32b8213a9a89c167/160.jpg?1740713414",
-                "size": "full",
-                "aspectRatio": "20:13",
-                "aspectMode": "cover"
-            },
-            "body": {
-                "type": "box",
-                "layout": "vertical",
-                "contents": [
-                    {
-                        "type": "text",
-                        "text": "TITLE",
-                        "weight": "bold",
-                        "size": "xl"
-                    },
-                    {
-                        "type": "text",
-                        "text": "DESCRIPTION",
-                        "wrap": True,
-                        "size": "sm"
-                    }
-                ]
-            }
-        }
-    )
+# シンプルなフレックスメッセージの作成
+def create_simple_flex_message():
+    # フレックスメッセージ作成（シンプルな内容）
+    bubble_container = FlexBubble(size='giga')
 
+    # ヘッダー部
+    title_text = FlexText(text="シンプルなタイトル", color='#FFFFFF', size='xl', weight='bold')
+    subtitle_text = FlexText(text="シンプルな説明", color='#FFFFFF66', size='lg')
+    header_box = FlexBox(
+        layout='vertical',
+        contents=[title_text, subtitle_text],
+        spacing='sm',
+        backgroundColor='#0367D3',
+        paddingAll='xxl'
+    )
+    bubble_container.header = header_box
+
+    # ボディ部
+    body_box = FlexBox(
+        layout='vertical',
+        spacing='xxl',
+        contents=[FlexText(text="これはシンプルなフレックスメッセージです。", size='lg', wrap=True)]
+    )
+    bubble_container.body = body_box
+
+    return bubble_container
 
 @handler.add(MessageEvent, message=TextMessageContent)
 def handle_message(event):
@@ -86,9 +79,9 @@ def handle_message(event):
     # 受信メッセージの中身を取得
     received_message = event.message.text
 
-    # @test が受信された場合、フレックスメッセージを送信
+    # @test が受信された場合、シンプルなフレックスメッセージを送信
     if received_message == "@test":
-        message = create_flex_message()  # フレックスメッセージの作成
+        message = create_simple_flex_message()  # シンプルなフレックスメッセージを作成
         line_bot_api.reply_message(
             ReplyMessageRequest(
                 replyToken=event.reply_token,
