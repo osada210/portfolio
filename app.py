@@ -12,7 +12,8 @@ from linebot.v3.messaging import (
 )
 from linebot.v3.webhooks import MessageEvent, TextMessageContent
 import os
-from linebot.v3.messaging import FlexMessage
+from linebot.v3.messaging import FlexMessage, FlexContainer
+
 
 # .env 読み込み
 from dotenv import load_dotenv
