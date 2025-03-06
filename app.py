@@ -8,7 +8,7 @@ from linebot.v3 import WebhookHandler
 from linebot.v3.exceptions import InvalidSignatureError
 from linebot.v3.messaging import (
     ApiClient, Configuration, MessagingApi,
-    ReplyMessageRequest, PushMessageRequest, FlexMessage, FlexCarousel, FlexBubble, FlexBox, FlexText, FlexImage
+    PushMessageRequest, FlexMessage, FlexCarousel, FlexBubble, FlexBox, FlexText, FlexImage
 )
 from linebot.v3.webhooks import MessageEvent, TextMessageContent
 import time
@@ -128,21 +128,11 @@ def handle_message(event):
             message = create_anime_flex_message_from_scraping(start_index=start_index)
             messages.append(message)
 
-        # すべてのメッセージを送信
+        # すべてのメッセージをプッシュメッセージで送信
         with ApiClient(configuration) as api_client:
             line_bot_api = MessagingApi(api_client)
             try:
                 # メッセージを5件ずつに分割して送信
-                for i in range(0, len(messages), 5):
-                    line_bot_api.reply_message(
-                        ReplyMessageRequest(
-                            replyToken=event.reply_token,
-                            messages=messages[i:i+5]
-                        )
-                    )
-            except Exception as e:
-                app.logger.error(f"Failed to send message with reply token: {e}")
-                # リプライトークンが無効な場合、push_messageを使用して再送信
                 for i in range(0, len(messages), 5):
                     line_bot_api.push_message(
                         PushMessageRequest(
@@ -150,6 +140,8 @@ def handle_message(event):
                             messages=messages[i:i+5]
                         )
                     )
+            except Exception as e:
+                app.logger.error(f"Failed to send push message: {e}")
 
 # アプリケーション起動
 if __name__ == "__main__":
