@@ -43,6 +43,18 @@ def callback():
 
     return 'OK'
 
+# テキストをフォーマットする関数
+def format_anime_info(text):
+    # 改行を追加して情報を整理
+    formatted_text = text.replace("【", "\n【").replace("】", "】\n").replace("、", "、\n")
+    
+    # ラベルを追加
+    formatted_text = formatted_text.replace("メインスタッフ", "\nメインスタッフ:\n")
+    formatted_text = formatted_text.replace("メインキャスト", "\nメインキャスト:\n")
+    formatted_text = formatted_text.replace("放送時期", "\n放送時期: ")
+
+    return formatted_text.strip()
+
 # スクレイピングを行う関数
 def scrape_anime_data():
     res = requests.get('https://anime.eiga.com/program/')
@@ -66,7 +78,7 @@ def scrape_anime_data():
         for i in range(len(ttl)):
             title = ttl[i].get_text()
             imagine = img[i] if i < len(img) else "画像なし"
-            overview = data[i].get_text()
+            overview = format_anime_info(data[i].get_text())  # フォーマット関数を適用
             results.append({"title": title, "image": imagine, "overview": overview})
         return results
 
