@@ -49,7 +49,7 @@ def format_anime_info(text):
     formatted_text = text.replace("【", "\n【").replace("】", "】\n").replace("、", "、\n")
     
     # ラベルを追加
-    formatted_text = formatted_text.replace("メインスタッフ", "\nメインスタッフ:\n")
+    formatted_text = formatted_text.replace("メインスタッフ", "")
     formatted_text = formatted_text.replace("メインキャスト", "\nメインキャスト:\n")
     formatted_text = formatted_text.replace("放送時期", "\n放送時期: ")
 
