@@ -99,7 +99,16 @@ def create_anime_flex_message_from_scraping(start_index=0, count=5):
             footer=FlexBox(
                 layout='vertical',
                 contents=[
-                    FlexText(text="次を表示", size='lg', align='center', action={"type": "message", "label": "次を表示", "text": "@next"})
+                    FlexText(
+                        text="次を表示",
+                        size='lg',
+                        align='center',
+                        action={
+                            "type": "message",
+                            "label": "次を表示",
+                            "text": "@next"  # ここにtextフィールドを追加
+                        }
+                    )
                 ]
             )
         )
