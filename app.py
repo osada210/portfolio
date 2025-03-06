@@ -1,5 +1,10 @@
 import os
+import requests
+import requests_cache
+import urllib.request
+from bs4 import BeautifulSoup
 from flask import Flask, request, abort
+from dotenv import load_dotenv
 from linebot.v3 import WebhookHandler
 from linebot.v3.exceptions import InvalidSignatureError
 from linebot.v3.messaging import (
@@ -7,23 +12,20 @@ from linebot.v3.messaging import (
     ReplyMessageRequest, FlexMessage, FlexCarousel, FlexBubble, FlexBox, FlexText, FlexImage
 )
 from linebot.v3.webhooks import MessageEvent, TextMessageContent
-from dotenv import load_dotenv
 
-# .env ファイルの読み込み
+# 環境変数の読み込み
 load_dotenv()
-
-# 環境変数の取得
 CHANNEL_ACCESS_TOKEN = os.environ["CHANNEL_ACCESS_TOKEN"]
 CHANNEL_SECRET = os.environ["CHANNEL_SECRET"]
 
 # Flask アプリのインスタンス化
 app = Flask(__name__)
-
-# LINE のアクセストークン設定
 configuration = Configuration(access_token=CHANNEL_ACCESS_TOKEN)
 handler = WebhookHandler(CHANNEL_SECRET)
 
-# コールバック関数
+# キャッシュ設定（60分間キャッシュを保存）
+requests_cache.install_cache('anime_cache', expire_after=3600)
+
 @app.route("/callback", methods=['POST'])
 def callback():
     signature = request.headers['X-Line-Signature']
@@ -38,40 +40,48 @@ def callback():
 
     return 'OK'
 
-# アニメのフレックスメッセージ（カルーセル）を作成
-def create_anime_flex_message():
-    # 各アニメの情報
-    anime_data = [
-        {
-            "title": "阿波連さんははかれない season2",
-            "release": "2025年春放送予定",
-            "image_url": "https://eiga.k-img.com/images/anime/program/112373/photo/12fd5ed30a0b7467/160.jpg?1722832556",
-            "studio": "FelixFilm",
-            "staff": "総監督: 山本靖貴\n監督: 牧野友映\nシリーズ構成: 吉岡たかを",
-            "cast": "水瀬いのり, 寺島拓篤, M・A・O, 柿原徹也, 楠木ともり, 花澤香菜"
-        },
-        {
-            "title": "リゼロ season3",
-            "release": "2024年10月放送予定",
-            "image_url": "https://animeanime.jp/imgs/zoom/472579.jpg",
-            "studio": "WHITE FOX",
-            "staff": "監督: 渡邊政治\nシリーズ構成: 横谷昌宏",
-            "cast": "小林裕介, 高橋李依, 内山夕実, 水瀬いのり"
-        }
-    ]
+# スクレイピングを行う関数
+def scrape_anime_data():
+    res = requests.get('https://anime.eiga.com/program/')
+    soup = BeautifulSoup(res.text, 'html.parser')
 
-    # 各アニメの情報を元にバブルを作成
+    animeTtl = soup.find_all(class_="seasonAnimeTtl")
+    animeImg = soup.find_all("img")
+    anime_data = soup.find_all(class_="seasonAnimeDetail")
+
+    def dedup_and_restore(data):
+        reversed_data = data[::-1]
+        unique_reversed = sorted(set(reversed_data), key=reversed_data.index)
+        return unique_reversed[::-1]
+
+    anime_Ttl = dedup_and_restore(animeTtl)
+    anime_Img = dedup_and_restore(animeImg)
+    anime_Img = [img.get("src") for img in anime_Img if img.get("src") and ("/program/" in img.get("src") or "/shared/" in img.get("src"))]
+
+    def a_result(ttl, img, data):
+        results = []
+        for i in range(len(ttl)):
+            title = ttl[i].get_text()
+            imagine = img[i] if i < len(img) else "画像なし"
+            overview = data[i].get_text()
+            results.append({"title": title, "image": imagine, "overview": overview})
+        return results
+
+    return a_result(ttl=anime_Ttl, img=anime_Img, data=anime_data)
+
+# スクレイピングデータをカルーセルに変換する関数
+def create_anime_flex_message_from_scraping():
+    anime_list = scrape_anime_data()
     bubbles = []
-    for anime in anime_data:
+
+    for anime in anime_list[:5]:  # 5件のみ表示
         bubble = FlexBubble(
             size='giga',
             header=FlexBox(
                 layout='vertical',
                 contents=[
                     FlexText(text=f"【{anime['title']}】", color='#FFFFFF', size='xl', weight='bold'),
-                    FlexText(text=anime['release'], color='#FFFFFF66', size='lg')
                 ],
-                spacing='sm',
                 backgroundColor='#0367D3',
                 paddingAll='xxl'
             ),
@@ -79,18 +89,13 @@ def create_anime_flex_message():
                 layout='vertical',
                 spacing='xxl',
                 contents=[
-                    FlexImage(url=anime['image_url'], size='full', aspect_ratio="1:1", aspect_mode="cover"),
-                    FlexText(text=f"制作会社: {anime['studio']}", size='lg', wrap=True),
-                    FlexText(text="メインスタッフ:", size='lg', wrap=True),
-                    FlexText(text=anime['staff'], size='lg', wrap=True),
-                    FlexText(text="メインキャスト:", size='lg', wrap=True),
-                    FlexText(text=anime['cast'], size='lg', wrap=True)
+                    FlexImage(url=anime['image'], size='full', aspect_ratio="1:1", aspect_mode="cover") if anime['image'] != "画像なし" else FlexText(text="画像なし", size='lg', wrap=True),
+                    FlexText(text=anime['overview'], size='lg', wrap=True)
                 ]
             )
         )
         bubbles.append(bubble)
 
-    # カルーセルメッセージを作成
     return FlexMessage(
         alt_text="最新アニメ情報",
         contents=FlexCarousel(contents=bubbles)
@@ -104,9 +109,8 @@ def handle_message(event):
 
     received_message = event.message.text
 
-    # "@anime" のメッセージが送られた場合、カルーセル形式のフレックスメッセージを送信
     if received_message == "@anime":
-        message = create_anime_flex_message()
+        message = create_anime_flex_message_from_scraping()
         line_bot_api.reply_message(
             ReplyMessageRequest(
                 replyToken=event.reply_token,
