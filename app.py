@@ -49,8 +49,8 @@ def format_anime_info(text):
     formatted_text = text.replace("【", "\n【").replace("】", "】\n").replace("、", "、\n")
     
     # ラベルを調整
-    formatted_text = formatted_text.replace("メインスタッフ", "")  # メインスタッフを削除
-    formatted_text = formatted_text.replace("メインキャスト", "\n\nメインキャスト:")  # メインキャストの上にスペースを追加
+    formatted_text = formatted_text.replace("メインスタッフ", "")
+    formatted_text = formatted_text.replace("メインキャスト", "\n\nメインキャスト:")
 
     # 総監督または監督の上にスペースを追加
     if "【総監督】" in formatted_text:
@@ -88,7 +88,7 @@ def scrape_anime_data():
         for i in range(len(ttl)):
             title = ttl[i].get_text()
             imagine = img[i] if i < len(img) else "画像なし"
-            overview = format_anime_info(data[i].get_text())  # フォーマット関数を適用
+            overview = format_anime_info(data[i].get_text())
             results.append({"title": title, "image": imagine, "overview": overview})
         return results
 
@@ -136,7 +136,7 @@ def handle_message(event):
     current_time = time.time()
     if user_id in user_request_times:
         last_request_time = user_request_times[user_id]
-        if current_time - last_request_time < 10:  # 10秒間隔で制限
+        if current_time - last_request_time < 10:
             app.logger.info(f"Request from user {user_id} is too frequent.")
             return
     user_request_times[user_id] = current_time
