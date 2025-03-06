@@ -9,7 +9,7 @@ from linebot.v3 import WebhookHandler
 from linebot.v3.exceptions import InvalidSignatureError
 from linebot.v3.messaging import (
     ApiClient, Configuration, MessagingApi,
-    ReplyMessageRequest, FlexMessage, FlexCarousel, FlexBubble, FlexBox, FlexText, FlexImage
+    ReplyMessageRequest, PushMessageRequest, FlexMessage, FlexCarousel, FlexBubble, FlexBox, FlexText, FlexImage
 )
 from linebot.v3.webhooks import MessageEvent, TextMessageContent
 
@@ -120,15 +120,23 @@ def handle_message(event):
         with ApiClient(configuration) as api_client:
             line_bot_api = MessagingApi(api_client)
             try:
+                # 1つのリプライトークンで複数のメッセージを送信する
+                line_bot_api.reply_message(
+                    ReplyMessageRequest(
+                        replyToken=event.reply_token,
+                        messages=messages
+                    )
+                )
+            except Exception as e:
+                app.logger.error(f"Failed to send message with reply token: {e}")
+                # リプライトークンが無効な場合、push_messageを使用して再送信
                 for message in messages:
-                    line_bot_api.reply_message(
-                        ReplyMessageRequest(
-                            replyToken=event.reply_token,
+                    line_bot_api.push_message(
+                        PushMessageRequest(
+                            to=user_id,
                             messages=[message]
                         )
                     )
-            except Exception as e:
-                app.logger.error(f"Failed to send message: {e}")
 
 # アプリケーション起動
 if __name__ == "__main__":
