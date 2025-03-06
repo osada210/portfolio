@@ -51,13 +51,17 @@ def format_anime_info(text):
     # ラベルを調整
     formatted_text = formatted_text.replace("メインスタッフ", "")  # メインスタッフを削除
     formatted_text = formatted_text.replace("メインキャスト", "\n\nメインキャスト:")  # メインキャストの上にスペースを追加
-    formatted_text = formatted_text.replace("放送開始", "\n放送開始: ")
 
     # 総監督または監督の上にスペースを追加
     if "【総監督】" in formatted_text:
         formatted_text = formatted_text.replace("【総監督】", "\n【総監督】")
     else:
         formatted_text = formatted_text.replace("【監督】", "\n【監督】")
+
+    if "放送開始" in formatted_text:
+        formatted_text = formatted_text.replace("放送開始", "\n放送開始: ")
+    elif "放送時期" in formatted_text:
+        formatted_text = formatted_text.replace("放送時期", "\n放送時期: ")
 
     return formatted_text.strip()
 
