@@ -9,7 +9,7 @@ from linebot.v3 import WebhookHandler
 from linebot.v3.exceptions import InvalidSignatureError
 from linebot.v3.messaging import (
     ApiClient, Configuration, MessagingApi,
-    ReplyMessageRequest, FlexMessage, FlexCarousel, FlexBubble, FlexBox, FlexText, FlexImage, FlexButton
+    ReplyMessageRequest, FlexMessage, FlexCarousel, FlexBubble, FlexBox, FlexText, FlexImage, FlexButton, MessageAction
 )
 from linebot.v3.webhooks import MessageEvent, TextMessageContent
 
@@ -25,9 +25,6 @@ handler = WebhookHandler(CHANNEL_SECRET)
 
 # キャッシュ設定（60分間キャッシュを保存）
 requests_cache.install_cache('anime_cache', expire_after=3600)
-
-# ユーザーの状態を管理するための辞書
-user_states = {}
 
 @app.route("/callback", methods=['POST'])
 def callback():
@@ -73,41 +70,27 @@ def scrape_anime_data():
     return a_result(ttl=anime_Ttl, img=anime_Img, data=anime_data)
 
 # スクレイピングデータをカルーセルに変換する関数
-def create_anime_flex_message_from_scraping(start_index=0, count=5):
+def create_anime_flex_message_from_scraping(start_index=0, count=10):
     anime_list = scrape_anime_data()
     bubbles = []
 
     for anime in anime_list[start_index:start_index + count]:
         bubble = FlexBubble(
-            size='giga',
+            size='mega',  # サイズを小さく設定
             header=FlexBox(
                 layout='vertical',
                 contents=[
-                    FlexText(text=f"【{anime['title']}】", color='#FFFFFF', size='xl', weight='bold'),
+                    FlexText(text=f"【{anime['title']}】", color='#FFFFFF', size='md', weight='bold'),
                 ],
                 backgroundColor='#0367D3',
-                paddingAll='xxl'
+                paddingAll='lg'
             ),
             body=FlexBox(
                 layout='vertical',
-                spacing='xxl',
+                spacing='md',
                 contents=[
-                    FlexImage(url=anime['image'], size='full', aspect_ratio="1:1", aspect_mode="cover") if anime['image'] != "画像なし" else FlexText(text="画像なし", size='lg', wrap=True),
-                    FlexText(text=anime['overview'], size='lg', wrap=True)
-                ]
-            ),
-            footer=FlexBox(
-                layout='vertical',
-                contents=[
-                    FlexButton(
-                        style='primary',
-                        color='#0367D3',
-                        action={
-                            "type": "message",
-                            "label": "次を表示",
-                            "text": "@next"
-                        }
-                    )
+                    FlexImage(url=anime['image'], size='full', aspect_ratio="1:1", aspect_mode="cover") if anime['image'] != "画像なし" else FlexText(text="画像なし", size='sm', wrap=True),
+                    FlexText(text=anime['overview'], size='sm', wrap=True)
                 ]
             )
         )
@@ -128,18 +111,16 @@ def handle_message(event):
     received_message = event.message.text
 
     if received_message == "@anime":
-        user_states[user_id] = 0  # 初期インデックスを設定
-        message = create_anime_flex_message_from_scraping()
-        line_bot_api.reply_message(
-            ReplyMessageRequest(
-                replyToken=event.reply_token,
-                messages=[message]
-            )
-        )
-    elif received_message == "@next":
-        if user_id in user_states:
-            user_states[user_id] += 5  # 次のインデックスに進む
-            message = create_anime_flex_message_from_scraping(start_index=user_states[user_id])
+        anime_list = scrape_anime_data()
+        messages = []
+
+        # 10件ずつのFlex Messageを作成
+        for start_index in range(0, len(anime_list), 10):
+            message = create_anime_flex_message_from_scraping(start_index=start_index)
+            messages.append(message)
+
+        # すべてのメッセージを送信
+        for message in messages:
             line_bot_api.reply_message(
                 ReplyMessageRequest(
                     replyToken=event.reply_token,
