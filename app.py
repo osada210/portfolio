@@ -9,7 +9,7 @@ from linebot.v3 import WebhookHandler
 from linebot.v3.exceptions import InvalidSignatureError
 from linebot.v3.messaging import (
     ApiClient, Configuration, MessagingApi,
-    ReplyMessageRequest, FlexMessage, FlexCarousel, FlexBubble, FlexBox, FlexText, FlexImage, FlexButton, MessageAction
+    ReplyMessageRequest, FlexMessage, FlexCarousel, FlexBubble, FlexBox, FlexText, FlexImage
 )
 from linebot.v3.webhooks import MessageEvent, TextMessageContent
 
@@ -104,9 +104,6 @@ def create_anime_flex_message_from_scraping(start_index=0, count=10):
 # ユーザーのメッセージを受け取る
 @handler.add(MessageEvent, message=TextMessageContent)
 def handle_message(event):
-    with ApiClient(configuration) as api_client:
-        line_bot_api = MessagingApi(api_client)
-
     user_id = event.source.user_id
     received_message = event.message.text
 
@@ -120,13 +117,18 @@ def handle_message(event):
             messages.append(message)
 
         # すべてのメッセージを送信
-        for message in messages:
-            line_bot_api.reply_message(
-                ReplyMessageRequest(
-                    replyToken=event.reply_token,
-                    messages=[message]
-                )
-            )
+        with ApiClient(configuration) as api_client:
+            line_bot_api = MessagingApi(api_client)
+            try:
+                for message in messages:
+                    line_bot_api.reply_message(
+                        ReplyMessageRequest(
+                            replyToken=event.reply_token,
+                            messages=[message]
+                        )
+                    )
+            except Exception as e:
+                app.logger.error(f"Failed to send message: {e}")
 
 # アプリケーション起動
 if __name__ == "__main__":
