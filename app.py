@@ -79,7 +79,7 @@ def create_anime_flex_message_from_scraping(start_index=0, count=10):
 
     for anime in anime_list[start_index:start_index + count]:
         bubble = FlexBubble(
-            size='kilo',
+            size='micro',
             header=FlexBox(
                 layout='vertical',
                 contents=[
