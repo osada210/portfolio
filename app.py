@@ -1,7 +1,6 @@
 import os
 import requests
 import requests_cache
-import urllib.request
 from bs4 import BeautifulSoup
 from flask import Flask, request, abort
 from dotenv import load_dotenv
@@ -12,6 +11,7 @@ from linebot.v3.messaging import (
     ReplyMessageRequest, PushMessageRequest, FlexMessage, FlexCarousel, FlexBubble, FlexBox, FlexText, FlexImage
 )
 from linebot.v3.webhooks import MessageEvent, TextMessageContent
+import time
 
 # 環境変数の読み込み
 load_dotenv()
@@ -25,6 +25,9 @@ handler = WebhookHandler(CHANNEL_SECRET)
 
 # キャッシュ設定（60分間キャッシュを保存）
 requests_cache.install_cache('anime_cache', expire_after=3600)
+
+# ユーザーのリクエストタイミングを記録する辞書
+user_request_times = {}
 
 @app.route("/callback", methods=['POST'])
 def callback():
@@ -107,6 +110,15 @@ def handle_message(event):
     user_id = event.source.user_id
     received_message = event.message.text
 
+    # ユーザーのリクエスト頻度を制限
+    current_time = time.time()
+    if user_id in user_request_times:
+        last_request_time = user_request_times[user_id]
+        if current_time - last_request_time < 10:  # 10秒間隔で制限
+            app.logger.info(f"Request from user {user_id} is too frequent.")
+            return
+    user_request_times[user_id] = current_time
+
     if received_message == "@anime":
         anime_list = scrape_anime_data()
         messages = []
@@ -120,21 +132,22 @@ def handle_message(event):
         with ApiClient(configuration) as api_client:
             line_bot_api = MessagingApi(api_client)
             try:
-                # 1つのリプライトークンで複数のメッセージを送信する
-                line_bot_api.reply_message(
-                    ReplyMessageRequest(
-                        replyToken=event.reply_token,
-                        messages=messages
+                # メッセージを5件ずつに分割して送信
+                for i in range(0, len(messages), 5):
+                    line_bot_api.reply_message(
+                        ReplyMessageRequest(
+                            replyToken=event.reply_token,
+                            messages=messages[i:i+5]
+                        )
                     )
-                )
             except Exception as e:
                 app.logger.error(f"Failed to send message with reply token: {e}")
                 # リプライトークンが無効な場合、push_messageを使用して再送信
-                for message in messages:
+                for i in range(0, len(messages), 5):
                     line_bot_api.push_message(
                         PushMessageRequest(
                             to=user_id,
-                            messages=[message]
+                            messages=messages[i:i+5]
                         )
                     )
 
