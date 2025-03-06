@@ -79,7 +79,7 @@ def create_anime_flex_message_from_scraping(start_index=0, count=10):
 
     for anime in anime_list[start_index:start_index + count]:
         bubble = FlexBubble(
-            size='micro',
+            size='nano',
             header=FlexBox(
                 layout='vertical',
                 contents=[
@@ -92,7 +92,7 @@ def create_anime_flex_message_from_scraping(start_index=0, count=10):
                 layout='vertical',
                 spacing='md',
                 contents=[
-                    FlexImage(url=anime['image'], size='full', aspect_ratio="1:1", aspect_mode="cover") if anime['image'] != "画像なし" else FlexText(text="画像なし", size='sm', wrap=True),
+                    FlexImage(url=anime['image'], size='full', aspect_ratio="16:9", aspect_mode="cover") if anime['image'] != "画像なし" else FlexText(text="画像なし", size='sm', wrap=True),
                     FlexText(text=anime['overview'], size='sm', wrap=True)
                 ]
             )
@@ -100,7 +100,7 @@ def create_anime_flex_message_from_scraping(start_index=0, count=10):
         bubbles.append(bubble)
 
     return FlexMessage(
-        alt_text="最新アニメ情報",
+        alt_text="アニメ情報",
         contents=FlexCarousel(contents=bubbles)
     )
 
