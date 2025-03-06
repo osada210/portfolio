@@ -9,7 +9,7 @@ from linebot.v3 import WebhookHandler
 from linebot.v3.exceptions import InvalidSignatureError
 from linebot.v3.messaging import (
     ApiClient, Configuration, MessagingApi,
-    ReplyMessageRequest, FlexMessage, FlexCarousel, FlexBubble, FlexBox, FlexText, FlexImage
+    ReplyMessageRequest, FlexMessage, FlexCarousel, FlexBubble, FlexBox, FlexText, FlexImage, FlexButton
 )
 from linebot.v3.webhooks import MessageEvent, TextMessageContent
 
@@ -99,14 +99,13 @@ def create_anime_flex_message_from_scraping(start_index=0, count=5):
             footer=FlexBox(
                 layout='vertical',
                 contents=[
-                    FlexText(
-                        text="次を表示",
-                        size='lg',
-                        align='center',
+                    FlexButton(
+                        style='primary',
+                        color='#0367D3',
                         action={
                             "type": "message",
                             "label": "次を表示",
-                            "text": "@next"  # ここにtextフィールドを追加
+                            "text": "@next"
                         }
                     )
                 ]
