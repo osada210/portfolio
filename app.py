@@ -48,11 +48,16 @@ def format_anime_info(text):
     # 改行を追加して情報を整理
     formatted_text = text.replace("【", "\n【").replace("】", "】\n").replace("、", "、\n")
     
-    # ラベルを追加
-    formatted_text = formatted_text.replace("メインスタッフ", "")
-    formatted_text = formatted_text.replace("制作会社", "制作会社\n")
-    formatted_text = formatted_text.replace("メインキャスト", "\n\nメインキャスト:")
-    formatted_text = formatted_text.replace("放送時期", "\n放送時期: ")
+    # ラベルを調整
+    formatted_text = formatted_text.replace("メインスタッフ", "")  # メインスタッフを削除
+    formatted_text = formatted_text.replace("メインキャスト", "\n\nメインキャスト:")  # メインキャストの上にスペースを追加
+    formatted_text = formatted_text.replace("放送開始", "\n放送開始: ")
+
+    # 総監督または監督の上にスペースを追加
+    if "【総監督】" in formatted_text:
+        formatted_text = formatted_text.replace("【総監督】", "\n【総監督】")
+    else:
+        formatted_text = formatted_text.replace("【監督】", "\n【監督】")
 
     return formatted_text.strip()
 
@@ -105,7 +110,7 @@ def create_anime_flex_message_from_scraping(start_index=0, count=10):
                 layout='vertical',
                 spacing='md',
                 contents=[
-                    FlexImage(url=anime['image'], size='md', aspect_ratio="1:1", aspect_mode="cover") if anime['image'] != "画像なし" else FlexText(text="画像なし", size='sm', wrap=True),
+                    FlexImage(url=anime['image'], size='lg', aspect_ratio="1:1", aspect_mode="cover") if anime['image'] != "画像なし" else FlexText(text="画像なし", size='sm', wrap=True),
                     FlexText(text=anime['overview'], size='sm', wrap=True)
                 ]
             )
